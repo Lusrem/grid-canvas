@@ -261,23 +261,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 上传路径到数据库
-  async function uploadPathToDB() {
-    if (selectedPath.length === 0) return;
-    // 转换路径为数据库格式
-    const cellsToUpload = selectedPath.map(p => ({
-      x: p.x,
-      y: p.y,
-      color: currentColor
-    }));
-    try {
-      await supabaseClient.from('grid').upsert(cellsToUpload);
-      // 重新加载数据
-      await loadGridCells();
-    } catch (err) {
-      alert('上传失败：' + err.message);
-    }
+  // 上传路径到数据库（新增：成功后强制刷新）
+async function uploadPathToDB() {
+  if (selectedPath.length === 0) return;
+  // 转换路径为数据库格式
+  const cellsToUpload = selectedPath.map(p => ({
+    x: p.x,
+    y: p.y,
+    color: currentColor
+  }));
+  try {
+    await supabaseClient.from('grid').upsert(cellsToUpload);
+    // 重新加载数据（可选，刷新前先加载）
+    await loadGridCells();
+    
+    // 🔴 核心修改：涂色成功后强制刷新页面
+    window.location.reload(true); // true = 强制从服务器刷新，不走缓存
+  } catch (err) {
+    alert('上传失败：' + err.message);
   }
+}
 
   // 转换鼠标/触摸坐标 → 网格坐标（适配平移）
   function getGridPos(clientX, clientY) {
@@ -300,3 +303,4 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始化
   loadGridCells().then(drawGrid);
 });
+
