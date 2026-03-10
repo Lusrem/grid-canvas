@@ -3,12 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Graffiti 0.4</title>
+  <title>2000x2000 公共涂鸦板</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; overflow: hidden; }
-    .controls { position: fixed; top: 10px; left: 10px; z-index: 999; background: #222; padding: 8px; border-radius: 6px; }
-    button, input[type="color"] { padding: 6px 10px; margin: 0 4px; border: none; border-radius: 4px; cursor: pointer; background: #444; color: #fff; }
+    /* 🔴 背景改成白色 */
+    body { background: #ffffff; overflow: hidden; font-family: Arial, sans-serif; }
+    .controls { 
+      position: fixed; 
+      top: 10px; 
+      left: 10px; 
+      z-index: 999; 
+      background: #f0f0f0; /* 浅灰背景，适配白色页面 */
+      padding: 8px; 
+      border-radius: 6px; 
+      border: 1px solid #ccc;
+    }
+    button, input[type="color"] { 
+      padding: 6px 10px; 
+      margin: 0 4px; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      background: #444; 
+      color: #fff; 
+    }
+    button:hover { background: #666; }
     #canvas { display: block; cursor: crosshair; }
   </style>
 </head>
@@ -19,12 +38,10 @@
     <input type="color" id="colorPicker" value="#ff0000">
     <button id="confirm">确认涂色</button>
   </div>
-  <!-- Canvas 标签放在 body 最前面，确保能被 JS 找到 -->
   <canvas id="canvas"></canvas>
 
-  <!-- 最后才引入 JS，彻底避免找不到 canvas -->
+  <!-- 引入 Supabase 库 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
-
