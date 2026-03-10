@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
     await uploadGrid(tempSelectedCells.map(p => ({ x: p.x, y: p.y, color: currentColor })));
     await loadGridCells();
     drawGrid();
-    alert('涂色成功！数据已永久保存到白色背景的数据库中');
+    alert('涂色成功！数据已永久保存');
   };
 
   // 滚轮缩放
@@ -210,3 +210,4 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始化：加载数据 + 绘制
   loadGridCells().then(drawGrid);
 });
+
