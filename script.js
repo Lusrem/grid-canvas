@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentColor = e.target.value;
   };
 
-  // 3. 核心交互：路径式选中（鼠标+移动端触摸）
+  // 3. 核心交互：路径式选中（仅保留路径，不上传）
   // --- PC端鼠标事件 ---
   canvas.onmousedown = (e) => {
     if (e.button !== 0) return; // 只响应左键
@@ -104,13 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 停止绘制（鼠标/触摸松开）
+  // 停止绘制（鼠标/触摸松开）→ 🔴 核心修改：只停止状态，不上传
   function stopDrawing() {
     if (!isDrawing) return;
     isDrawing = false;
     lastGridPos = null;
-    // 自动上传路径涂色
-    uploadPathToDB();
+    // 移除自动上传逻辑，只保留选中路径
     drawGrid();
   }
 
@@ -123,16 +122,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 确认涂色按钮（手动触发）
+  // 确认涂色按钮 → 🔴 核心：唯一上传入口 + 刷新
   document.getElementById('confirm').onclick = async () => {
     if (selectedPath.length === 0) {
       alert('请先划过要涂色的格子！');
       return;
     }
+    
+    // 提示用户：开始上传
+    alert('正在涂色中，请稍候...');
+    
+    // 执行上传
     await uploadPathToDB();
-    alert(`成功涂色 ${selectedPath.length} 个格子！`);
-    selectedPath = [];
-    drawGrid();
+    
+    // 上传成功后强制刷新
+    window.location.reload(true);
   };
 
   // 4. 画布平移：鼠标右键/滚轮平移（PC端）
@@ -261,26 +265,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 上传路径到数据库（新增：成功后强制刷新）
-async function uploadPathToDB() {
-  if (selectedPath.length === 0) return;
-  // 转换路径为数据库格式
-  const cellsToUpload = selectedPath.map(p => ({
-    x: p.x,
-    y: p.y,
-    color: currentColor
-  }));
-  try {
-    await supabaseClient.from('grid').upsert(cellsToUpload);
-    // 重新加载数据（可选，刷新前先加载）
-    await loadGridCells();
-    
-    // 🔴 核心修改：涂色成功后强制刷新页面
-    window.location.reload(true); // true = 强制从服务器刷新，不走缓存
-  } catch (err) {
-    alert('上传失败：' + err.message);
+  // 上传路径到数据库（仅被确认按钮调用）
+  async function uploadPathToDB() {
+    if (selectedPath.length === 0) return;
+    // 转换路径为数据库格式
+    const cellsToUpload = selectedPath.map(p => ({
+      x: p.x,
+      y: p.y,
+      color: currentColor
+    }));
+    try {
+      await supabaseClient.from('grid').upsert(cellsToUpload);
+      // 重新加载数据
+      await loadGridCells();
+    } catch (err) {
+      alert('涂色失败：' + err.message);
+    }
   }
-}
 
   // 转换鼠标/触摸坐标 → 网格坐标（适配平移）
   function getGridPos(clientX, clientY) {
@@ -303,4 +304,3 @@ async function uploadPathToDB() {
   // 初始化
   loadGridCells().then(drawGrid);
 });
-
