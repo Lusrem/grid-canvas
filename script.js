@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. 初始化画布
+  // 1. 初始化画布（绝对稳定）
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
   const GRID_SIZE = 2000;
@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let isSelecting = false;
   let selectStart = { x: 0, y: 0 };
   let selectEnd = { x: 0, y: 0 };
+  let tempCells = []; // 临时存涂色，先不存数据库
 
   // 初始化画布尺寸
   canvas.width = window.innerWidth;
@@ -27,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentColor = e.target.value;
   };
 
-  // 3. 鼠标交互：框选涂色
+  // 3. 鼠标交互：框选涂色（纯前端，先不连数据库）
   canvas.onmousedown = (e) => {
     isSelecting = true;
     selectStart = getGridPos(e.clientX, e.clientY);
@@ -46,11 +47,26 @@ document.addEventListener('DOMContentLoaded', () => {
     drawGrid();
   };
 
-  // 确认涂色按钮
-  document.getElementById('confirm').onclick = async () => {
-    await uploadGrid();
+  // 确认涂色（先存到临时数组，页面刷新会消失，先测试交互）
+  document.getElementById('confirm').onclick = () => {
+    const x1 = Math.max(0, Math.min(selectStart.x, selectEnd.x));
+    const y1 = Math.max(0, Math.min(selectStart.y, selectEnd.y));
+    const x2 = Math.min(GRID_SIZE, Math.max(selectStart.x, selectEnd.x));
+    const y2 = Math.min(GRID_SIZE, Math.max(selectStart.y, selectEnd.y));
+
+    if (x1 === x2 || y1 === y2) {
+      alert('请先框选要涂色的区域！');
+      return;
+    }
+
+    // 把涂色区域存到临时数组
+    for (let x = x1; x < x2; x++) {
+      for (let y = y1; y < y2; y++) {
+        tempCells.push({ x, y, color: currentColor });
+      }
+    }
     drawGrid();
-    alert('涂色成功！数据已永久保存到数据库');
+    alert('临时涂色成功！刷新页面会消失，下一步我们连数据库永久保存');
   };
 
   // 滚轮缩放
@@ -61,8 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
     drawGrid();
   }, { passive: false });
 
-  // 4. 核心绘制：网格 + 已涂色区域 + 选择框
-  async function drawGrid() {
+  // 4. 核心绘制：网格 + 临时涂色 + 选择框
+  function drawGrid() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(scale, scale);
@@ -91,18 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.stroke();
     }
 
-    // 加载数据库里的涂色格子
-    try {
-      const { data } = await supabaseClient.from('grid').select('x,y,color');
-      if (data) {
-        data.forEach(p => {
-          if (p.x >= startX && p.x < endX && p.y >= startY && p.y < endY) {
-            ctx.fillStyle = p.color;
-            ctx.fillRect(p.x * cellSize, p.y * cellSize, cellSize, cellSize);
-          }
-        });
+    // 画临时涂色区域（页面刷新前都在）
+    tempCells.forEach(p => {
+      if (p.x >= startX && p.x < endX && p.y >= startY && p.y < endY) {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x * cellSize, p.y * cellSize, cellSize, cellSize);
       }
-    } catch (err) { console.log('数据库加载中...'); }
+    });
 
     // 画选择框
     if (isSelecting) {
@@ -118,39 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.restore();
   }
 
-  // 5. 数据库连接（用新变量名 supabaseClient，绝对无冲突）
-  const supabaseClient = window.supabase.createClient(
-    "https://osbmvtoficehfqkbnijj.supabase.co", // 替换成你的 Project URL
-    "sb_publishable_An6Hom9T6AUhaaab1F6_yg_lBr3ClHW" // 替换成你的 Publishable key
-  );
-
-  // 6. 上传涂色数据到数据库
-  async function uploadGrid() {
-    const x1 = Math.max(0, Math.min(selectStart.x, selectEnd.x));
-    const y1 = Math.max(0, Math.min(selectStart.y, selectEnd.y));
-    const x2 = Math.min(GRID_SIZE, Math.max(selectStart.x, selectEnd.x));
-    const y2 = Math.min(GRID_SIZE, Math.max(selectStart.y, selectEnd.y));
-
-    if (x1 === x2 || y1 === y2) {
-      alert('请先框选要涂色的区域！');
-      return;
-    }
-
-    const cells = [];
-    for (let x = x1; x < x2; x++) {
-      for (let y = y1; y < y2; y++) {
-        cells.push({ x, y, color: currentColor });
-      }
-    }
-
-    try {
-      await supabaseClient.from('grid').upsert(cells);
-    } catch (err) {
-      alert('上传失败：' + err.message);
-    }
-  }
-
-  // 7. 鼠标坐标 → 网格坐标 转换
+  // 5. 鼠标坐标 → 网格坐标 转换
   function getGridPos(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const x = Math.max(0, Math.min(GRID_SIZE - 1, Math.floor((clientX - rect.left) / (cellSize * scale))));
@@ -158,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return { x, y };
   }
 
-  // 8. 窗口自适应
+  // 6. 窗口自适应
   window.onresize = () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
