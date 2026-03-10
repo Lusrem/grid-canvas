@@ -1,35 +1,33 @@
 // ======================
-// 全局变量（只声明一次，彻底避免重复）
+// 全局变量（无重复声明）
 // ======================
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const W = 2000;
-const H = 2000;
+const GRID_SIZE = 2000;
 let cellSize = 4;
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
-let isDragging = false;
-let startX = 0;
-let startY = 0;
-let selectRect = null;
+let isSelecting = false;
+let selectStart = { x: 0, y: 0 };
+let selectEnd = { x: 0, y: 0 };
 let currentColor = '#ff0000';
 
-// 初始化画布尺寸
+// 初始化画布
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 // ======================
-// 1. 基础功能：颜色选择、缩放
+// 基础功能：缩放、颜色选择
 // ======================
 document.getElementById('zoomIn').onclick = () => {
-  scale = Math.min(scale * 1.2, 10);
-  draw();
+  scale = Math.min(scale * 1.2, 8);
+  drawGrid();
 };
 
 document.getElementById('zoomOut').onclick = () => {
-  scale = Math.max(scale / 1.2, 0.1);
-  draw();
+  scale = Math.max(scale / 1.2, 0.2);
+  drawGrid();
 };
 
 document.getElementById('colorPicker').onchange = (e) => {
@@ -37,122 +35,110 @@ document.getElementById('colorPicker').onchange = (e) => {
 };
 
 // ======================
-// 2. 鼠标操作：多选、拖拽平移
+// 鼠标操作：框选涂色
 // ======================
 canvas.onmousedown = (e) => {
-  // 左键：多选，右键：拖拽平移（可选）
-  if (e.button === 0) {
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    selectRect = { x1: startX, y1: startY, x2: startX, y2: startY };
-  }
+  isSelecting = true;
+  selectStart = getGridPos(e.clientX, e.clientY);
+  selectEnd = { ...selectStart };
+  drawGrid();
 };
 
 canvas.onmousemove = (e) => {
-  if (!isDragging) return;
-  selectRect.x2 = e.clientX;
-  selectRect.y2 = e.clientY;
-  draw();
+  if (!isSelecting) return;
+  selectEnd = getGridPos(e.clientX, e.clientY);
+  drawGrid();
 };
 
-canvas.onmouseup = (e) => {
-  if (e.button === 0) isDragging = false;
+canvas.onmouseup = async () => {
+  isSelecting = false;
+  // 自动提交涂色（不用点确认，更流畅）
+  await uploadGrid();
+  drawGrid();
 };
 
-// 滚轮缩放+平移
+// 鼠标滚轮：缩放/平移
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  if (e.ctrlKey) {
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    scale = Math.max(0.1, Math.min(10, scale * delta));
-  } else {
-    offsetX -= e.deltaX / scale;
-    offsetY -= e.deltaY / scale;
-  }
-  draw();
+  const delta = e.deltaY > 0 ? -0.1 : 0.1;
+  scale = Math.max(0.2, Math.min(8, scale + delta));
+  drawGrid();
 }, { passive: false });
 
 // ======================
-// 3. 核心绘制：只画可见区域（性能拉满）
+// 核心绘制：只渲染可见区域（性能拉满）
 // ======================
-async function draw() {
+async function drawGrid() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.scale(scale, scale);
   ctx.translate(offsetX, offsetY);
 
-  // 计算可见区域的网格范围
-  const startX = Math.max(0, Math.floor(-offsetX / cellSize));
-  const endX = Math.min(W, Math.ceil((-offsetX + canvas.width / scale) / cellSize));
-  const startY = Math.max(0, Math.floor(-offsetY / cellSize));
-  const endY = Math.min(H, Math.ceil((-offsetY + canvas.height / scale) / cellSize));
+  // 计算可见网格范围
+  const visibleLeft = Math.max(0, Math.floor(-offsetX / cellSize));
+  const visibleRight = Math.min(GRID_SIZE, Math.ceil((-offsetX + canvas.width / scale) / cellSize));
+  const visibleTop = Math.max(0, Math.floor(-offsetY / cellSize));
+  const visibleBottom = Math.min(GRID_SIZE, Math.ceil((-offsetY + canvas.height / scale) / cellSize));
 
-  // 画网格
+  // 画网格线
   ctx.strokeStyle = '#333';
-  ctx.lineWidth = 0.5;
-  for (let x = startX; x < endX; x++) {
+  ctx.lineWidth = 0.3;
+  for (let x = visibleLeft; x < visibleRight; x++) {
     ctx.beginPath();
-    ctx.moveTo(x * cellSize, startY * cellSize);
-    ctx.lineTo(x * cellSize, endY * cellSize);
+    ctx.moveTo(x * cellSize, visibleTop * cellSize);
+    ctx.lineTo(x * cellSize, visibleBottom * cellSize);
     ctx.stroke();
   }
-  for (let y = startY; y < endY; y++) {
+  for (let y = visibleTop; y < visibleBottom; y++) {
     ctx.beginPath();
-    ctx.moveTo(startX * cellSize, y * cellSize);
-    ctx.lineTo(endX * cellSize, y * cellSize);
+    ctx.moveTo(visibleLeft * cellSize, y * cellSize);
+    ctx.lineTo(visibleRight * cellSize, y * cellSize);
     ctx.stroke();
   }
 
   // 加载数据库涂色
   try {
-    const { data } = await supabase.from('grid').select('x,y,color');
+    const { data } = await window.supabase.from('grid').select('x,y,color');
     if (data) {
       data.forEach(p => {
-        if (p.x >= startX && p.x < endX && p.y >= startY && p.y < endY) {
+        if (p.x >= visibleLeft && p.x < visibleRight && p.y >= visibleTop && p.y < visibleBottom) {
           ctx.fillStyle = p.color;
           ctx.fillRect(p.x * cellSize, p.y * cellSize, cellSize, cellSize);
         }
       });
     }
-  } catch (err) {
-    console.log('数据库加载中...');
-  }
+  } catch (err) { /* 静默失败，不影响渲染 */ }
 
   // 画选择框
-  if (selectRect && isDragging) {
+  if (isSelecting) {
+    const x1 = Math.min(selectStart.x, selectEnd.x);
+    const y1 = Math.min(selectStart.y, selectEnd.y);
+    const x2 = Math.max(selectStart.x, selectEnd.x);
+    const y2 = Math.max(selectStart.y, selectEnd.y);
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1;
-    ctx.strokeRect(
-      selectRect.x1,
-      selectRect.y1,
-      selectRect.x2 - selectRect.x1,
-      selectRect.y2 - selectRect.y1
-    );
+    ctx.strokeRect(x1 * cellSize, y1 * cellSize, (x2 - x1) * cellSize, (y2 - y1) * cellSize);
   }
 
   ctx.restore();
 }
 
 // ======================
-// 4. 数据库连接（替换成你的密钥！）
+// 数据库连接：用 window.supabase，无重复声明
 // ======================
-const supabase = window.supabase.createClient(
-  "https://osbmvtoficehfqkbnijj.supabase.co", // 你的 Project URL
-  "sb_publishable_An6Hom9T6AUhaaab1F6_yg_lBr3ClHW" // 你的 Publishable key
+const SupaClient = window.supabase.createClient(
+  "https://osbmvtoficehfqkbnijj.supabase.co", //  替换成你的 Project URL
+  "sb_publishable_An6Hom9T6AUhaaab1F6_yg_lBr3ClHW" //  替换成你的 Publishable key
 );
 
-// 确认涂色
-document.getElementById('confirm').onclick = async () => {
-  if (!selectRect || (selectRect.x1 === selectRect.x2 && selectRect.y1 === selectRect.y2)) {
-    return alert('请先框选要涂色的区域！');
-  }
+// 上传涂色数据
+async function uploadGrid() {
+  const x1 = Math.max(0, Math.min(selectStart.x, selectEnd.x));
+  const y1 = Math.max(0, Math.min(selectStart.y, selectEnd.y));
+  const x2 = Math.min(GRID_SIZE, Math.max(selectStart.x, selectEnd.x));
+  const y2 = Math.min(GRID_SIZE, Math.max(selectStart.y, selectEnd.y));
 
-  // 转换为网格坐标
-  const x1 = Math.max(0, Math.floor(selectRect.x1 / cellSize - offsetX));
-  const y1 = Math.max(0, Math.floor(selectRect.y1 / cellSize - offsetY));
-  const x2 = Math.min(W, Math.ceil(selectRect.x2 / cellSize - offsetX));
-  const y2 = Math.min(H, Math.ceil(selectRect.y2 / cellSize - offsetY));
+  if (x1 === x2 || y1 === y2) return;
 
   const cells = [];
   for (let x = x1; x < x2; x++) {
@@ -162,21 +148,24 @@ document.getElementById('confirm').onclick = async () => {
   }
 
   try {
-    await supabase.from('grid').upsert(cells);
-    selectRect = null;
-    draw();
-    alert('涂色成功！');
-  } catch (err) {
-    alert('上传失败：' + err.message);
-  }
-};
+    await SupaClient.from('grid').upsert(cells);
+  } catch (err) { }
+}
+
+// 转换鼠标坐标为网格坐标
+function getGridPos(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.max(0, Math.min(GRID_SIZE - 1, Math.floor((clientX - rect.left) / (cellSize * scale) - offsetX / cellSize)));
+  const y = Math.max(0, Math.min(GRID_SIZE - 1, Math.floor((clientY - rect.top) / (cellSize * scale) - offsetY / cellSize)));
+  return { x, y };
+}
 
 // 窗口大小自适应
 window.onresize = () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  draw();
+  drawGrid();
 };
 
 // 初始化
-draw();
+drawGrid();

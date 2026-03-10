@@ -1,10 +1,17 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Graffiti</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graffiti 0.3</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: Arial, sans-serif; }
+    .controls { position: fixed; top: 10px; left: 10px; z-index: 999; background: #222; padding: 8px; border-radius: 6px; }
+    button, input[type="color"] { padding: 6px 10px; margin: 0 4px; border: none; border-radius: 4px; cursor: pointer; background: #444; color: #fff; }
+    button:hover { background: #666; }
+    #canvas { display: block; cursor: crosshair; }
+  </style>
 </head>
 <body>
   <div class="controls">
@@ -13,8 +20,7 @@
     <input type="color" id="colorPicker" value="#ff0000">
     <button id="confirm">确认涂色</button>
   </div>
-  <canvas id="canvas"></canvas>
-
+  <!-- 只引入一次 Supabase，且不污染全局变量名 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
