@@ -1,0 +1,29 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  background: #111;
+  overflow: hidden;
+}
+.controls {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 999;
+  background: rgba(0,0,0,0.6);
+  padding: 8px;
+  border-radius: 8px;
+}
+button, input {
+  padding: 6px 10px;
+  margin: 0 4px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#canvas {
+  display: block;
+  cursor: crosshair;
+}
