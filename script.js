@@ -1,16 +1,14 @@
-// 等待页面完全加载后再执行，彻底避免找不到 canvas
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. 初始化画布（绝对能拿到 canvas，不会是 null）
+  // 1. 初始化画布
   const canvas = document.getElementById('canvas');
-  if (!canvas) {
-    alert('Canvas 元素未找到！');
-    return;
-  }
   const ctx = canvas.getContext('2d');
   const GRID_SIZE = 2000;
   let cellSize = 4;
   let scale = 1;
   let currentColor = '#ff0000';
+  let isSelecting = false;
+  let selectStart = { x: 0, y: 0 };
+  let selectEnd = { x: 0, y: 0 };
 
   // 初始化画布尺寸
   canvas.width = window.innerWidth;
@@ -29,13 +27,47 @@ document.addEventListener('DOMContentLoaded', () => {
     currentColor = e.target.value;
   };
 
-  // 3. 核心绘制：只画可见区域（性能拉满，绝对不卡）
-  function drawGrid() {
+  // 3. 鼠标交互：框选涂色
+  canvas.onmousedown = (e) => {
+    isSelecting = true;
+    selectStart = getGridPos(e.clientX, e.clientY);
+    selectEnd = { ...selectStart };
+    drawGrid();
+  };
+
+  canvas.onmousemove = (e) => {
+    if (!isSelecting) return;
+    selectEnd = getGridPos(e.clientX, e.clientY);
+    drawGrid();
+  };
+
+  canvas.onmouseup = () => {
+    isSelecting = false;
+    drawGrid();
+  };
+
+  // 确认涂色按钮
+  document.getElementById('confirm').onclick = async () => {
+    await uploadGrid();
+    drawGrid();
+    alert('涂色成功！数据已永久保存到数据库');
+  };
+
+  // 滚轮缩放
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    scale = Math.max(0.2, Math.min(8, scale + delta));
+    drawGrid();
+  }, { passive: false });
+
+  // 4. 核心绘制：网格 + 已涂色区域 + 选择框
+  async function drawGrid() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(scale, scale);
 
-    // 只画屏幕内的网格，避免循环400万次
+    // 可见区域计算
     const visibleWidth = canvas.width / scale;
     const visibleHeight = canvas.height / scale;
     const startX = Math.max(0, Math.floor(0 / cellSize));
@@ -43,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const startY = Math.max(0, Math.floor(0 / cellSize));
     const endY = Math.min(GRID_SIZE, Math.ceil(visibleHeight / cellSize));
 
+    // 画网格线
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 0.3;
     for (let x = startX; x < endX; x++) {
@@ -58,16 +91,80 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.stroke();
     }
 
+    // 加载数据库里的涂色格子
+    try {
+      const { data } = await supabaseClient.from('grid').select('x,y,color');
+      if (data) {
+        data.forEach(p => {
+          if (p.x >= startX && p.x < endX && p.y >= startY && p.y < endY) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x * cellSize, p.y * cellSize, cellSize, cellSize);
+          }
+        });
+      }
+    } catch (err) { console.log('数据库加载中...'); }
+
+    // 画选择框
+    if (isSelecting) {
+      const x1 = Math.min(selectStart.x, selectEnd.x);
+      const y1 = Math.min(selectStart.y, selectEnd.y);
+      const x2 = Math.max(selectStart.x, selectEnd.x);
+      const y2 = Math.max(selectStart.y, selectEnd.y);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x1 * cellSize, y1 * cellSize, (x2 - x1) * cellSize, (y2 - y1) * cellSize);
+    }
+
     ctx.restore();
   }
 
-  // 4. 窗口自适应
+  // 5. 数据库连接（用新变量名 supabaseClient，绝对无冲突）
+  const supabaseClient = window.supabase.createClient(
+    "https://osbmvtoficehfqkbnijj.supabase.co", // 替换成你的 Project URL
+    "sb_publishable_An6Hom9T6AUhaaab1F6_yg_lBr3ClHW" // 替换成你的 Publishable key
+  );
+
+  // 6. 上传涂色数据到数据库
+  async function uploadGrid() {
+    const x1 = Math.max(0, Math.min(selectStart.x, selectEnd.x));
+    const y1 = Math.max(0, Math.min(selectStart.y, selectEnd.y));
+    const x2 = Math.min(GRID_SIZE, Math.max(selectStart.x, selectEnd.x));
+    const y2 = Math.min(GRID_SIZE, Math.max(selectStart.y, selectEnd.y));
+
+    if (x1 === x2 || y1 === y2) {
+      alert('请先框选要涂色的区域！');
+      return;
+    }
+
+    const cells = [];
+    for (let x = x1; x < x2; x++) {
+      for (let y = y1; y < y2; y++) {
+        cells.push({ x, y, color: currentColor });
+      }
+    }
+
+    try {
+      await supabaseClient.from('grid').upsert(cells);
+    } catch (err) {
+      alert('上传失败：' + err.message);
+    }
+  }
+
+  // 7. 鼠标坐标 → 网格坐标 转换
+  function getGridPos(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(GRID_SIZE - 1, Math.floor((clientX - rect.left) / (cellSize * scale))));
+    const y = Math.max(0, Math.min(GRID_SIZE - 1, Math.floor((clientY - rect.top) / (cellSize * scale))));
+    return { x, y };
+  }
+
+  // 8. 窗口自适应
   window.onresize = () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     drawGrid();
   };
 
-  // 5. 初始化绘制
+  // 初始化
   drawGrid();
 });
