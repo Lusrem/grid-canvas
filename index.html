@@ -2,39 +2,81 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Graffiti 1.0.0</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Graffiti 1.1.0</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    /* 🔴 背景改成白色 */
-    body { background: #ffffff; overflow: hidden; font-family: Arial, sans-serif; }
+    /* 白色背景 + 移动端适配 */
+    body { 
+      background: #ffffff; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+      touch-action: none; /* 禁用移动端默认触摸行为 */
+    }
+    /* 控制栏：PC+手机自适应 */
     .controls { 
       position: fixed; 
       top: 10px; 
-      left: 10px; 
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 999; 
-      background: #f0f0f0; /* 浅灰背景，适配白色页面 */
+      background: #f0f0f0; 
       padding: 8px; 
-      border-radius: 6px; 
+      border-radius: 8px; 
       border: 1px solid #ccc;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
     }
+    /* 按钮样式：手机端更大更易点 */
     button, input[type="color"] { 
-      padding: 6px 10px; 
-      margin: 0 4px; 
+      padding: 8px 12px; 
       border: none; 
-      border-radius: 4px; 
+      border-radius: 6px; 
       cursor: pointer; 
       background: #444; 
       color: #fff; 
+      font-size: 14px;
+      min-width: 60px;
     }
     button:hover { background: #666; }
-    #canvas { display: block; cursor: crosshair; }
+    /* 平移按钮组 */
+    .move-buttons {
+      display: flex;
+      gap: 4px;
+    }
+    #canvas { 
+      display: block; 
+      cursor: crosshair; 
+      touch-action: none;
+    }
+    /* 适配手机端按钮大小 */
+    @media (max-width: 768px) {
+      .controls {
+        padding: 6px;
+      }
+      button, input[type="color"] {
+        padding: 10px 16px;
+        font-size: 16px;
+        min-width: 70px;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="controls">
+    <!-- 缩放按钮 -->
     <button id="zoomIn">放大</button>
     <button id="zoomOut">缩小</button>
+    <!-- 平移按钮组 -->
+    <div class="move-buttons">
+      <button id="moveUp">↑</button>
+      <button id="moveLeft">←</button>
+      <button id="moveDown">↓</button>
+      <button id="moveRight">→</button>
+    </div>
+    <!-- 颜色选择 + 确认按钮 -->
     <input type="color" id="colorPicker" value="#ff0000">
     <button id="confirm">确认涂色</button>
   </div>
@@ -45,4 +87,3 @@
   <script src="script.js"></script>
 </body>
 </html>
-
